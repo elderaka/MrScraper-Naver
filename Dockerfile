@@ -25,9 +25,8 @@ RUN apt-get update && apt-get install -y \
 COPY package.json package-lock.json* ./
 RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
-# Fetch Camoufox binary (environment variables are now set)
+# Install Playwright dependencies
 RUN npx playwright install-deps firefox
-RUN npx camoufox-js fetch
 
 COPY tsconfig.json ./
 COPY src ./src
@@ -75,10 +74,7 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY package.json ./
 
-# Copy Camoufox binary from builder stage
-COPY --from=builder /root/.cache/camoufox /root/.cache/camoufox
-
-# Ensure proper permissions
+# Ensure proper permissions (Camoufox will download on first run)
 RUN mkdir -p /tmp && chmod 1777 /tmp && \
     mkdir -p /root/.local/share && \
     mkdir -p /root/.config && \
@@ -94,7 +90,8 @@ ENV XDG_CONFIG_HOME=/root/.config
 ENV XDG_CACHE_HOME=/root/.cache
 
 EXPOSE 8080
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+# Increased start-period to allow time for Camoufox download on first run
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
     CMD node -e "require('http').get('http://localhost:8080/health', r => {if(r.statusCode !== 200) throw new Error(); process.exit(0)})"
 
 CMD ["node", "dist/server.js"]
