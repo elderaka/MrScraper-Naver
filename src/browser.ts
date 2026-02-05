@@ -7,10 +7,11 @@ import { config } from "dotenv";
 // ENV Config
 config();
 const proxy =
+  process.env.PROXY_URL ||
   process.env.PROXY ||
   "proxy-server-address:port:username:password";
 const HEADLESS = process.env.HEADLESS !== "false";
-const IP_TEST_URL = process.env.IP_TEST_URL || "";
+const IP_TEST_URL = process.env.IP_TEST_URL || "http://ipinfo.thordata.com";
 
 // Proxy configuration
 const proxyParts = proxy.split(":");
