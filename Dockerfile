@@ -25,6 +25,9 @@ RUN apt-get update && apt-get install -y \
 COPY package.json package-lock.json* ./
 RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
+# Fetch Camoufox binary (Node 22 now has proper os.homedir() support)
+RUN npx camoufox-js fetch
+
 # Install Playwright dependencies
 RUN npx playwright install-deps firefox 
 
@@ -72,9 +75,10 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Copy built application
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /root/.cache/camoufox /root/.cache/camoufox
 COPY package.json ./
 
-# Ensure proper permissions (Camoufox will download on first run)
+# Ensure proper permissions
 RUN mkdir -p /tmp && chmod 1777 /tmp && \
     mkdir -p /root/.local/share && \
     mkdir -p /root/.config && \
@@ -90,8 +94,8 @@ ENV XDG_CONFIG_HOME=/root/.config
 ENV XDG_CACHE_HOME=/root/.cache
 
 EXPOSE 8080
-# Increased start-period to allow time for Camoufox download on first run
-HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
+# Camoufox binary is pre-fetched, so short start-period for browser initialization
+HEALTHCHECK --interval=30s --timeout=10s --start-period=45s --retries=3 \
     CMD node -e "require('http').get('http://localhost:8080/health', r => {if(r.statusCode !== 200) throw new Error(); process.exit(0)})"
 
 CMD ["node", "dist/server.js"]
