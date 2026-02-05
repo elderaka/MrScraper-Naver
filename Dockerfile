@@ -3,6 +3,16 @@ FROM node:18-slim AS builder
 
 WORKDIR /app
 
+# Set environment variables FIRST - required before any camoufox operations
+ENV HOME=/root
+ENV XDG_DATA_HOME=/root/.local/share
+ENV XDG_CONFIG_HOME=/root/.config
+ENV XDG_CACHE_HOME=/root/.cache
+ENV CAMOUFOX_APP_NAME=camoufox
+
+# Create necessary directories
+RUN mkdir -p /root/.local/share /root/.config /root/.cache
+
 # Install dependencies needed for Camoufox and build tools for native modules
 RUN apt-get update && apt-get install -y \
     wget \
@@ -15,16 +25,9 @@ RUN apt-get update && apt-get install -y \
 COPY package.json package-lock.json* ./
 RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
-# Set environment variables for Camoufox
-ENV HOME=/root
-ENV XDG_DATA_HOME=/root/.local/share
-ENV XDG_CONFIG_HOME=/root/.config
-ENV XDG_CACHE_HOME=/root/.cache
-ENV CAMOUFOX_APP_NAME=camoufox
-
-# Fetch Camoufox binary
-RUN npx camoufox-js fetch
+# Fetch Camoufox binary (environment variables are now set)
 RUN npx playwright install-deps firefox
+RUN npx camoufox-js fetch
 
 COPY tsconfig.json ./
 COPY src ./src
