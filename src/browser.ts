@@ -10,7 +10,7 @@ const proxy =
   process.env.PROXY_URL ||
   process.env.PROXY ||
   "http://proxy-server-address:port:username:password";
-const HEADLESS = process.env.HEADLESS !== "true";
+const HEADLESS = process.env.HEADLESS || "true";
 const IP_TEST_URL = process.env.IP_TEST_URL || "http://ipinfo.thordata.com";
 
 // Proxy configuration (parse URL format: http://username:password@server:port)
@@ -61,11 +61,7 @@ export function withSessionUsername(
   return `${baseUsername}-session-${sessionId}`;
 }
 
-/**
- * Fast IP check through proxy server testing.
- * @param sessionId - Session ID to test
- * @returns IP info with country code
- */
+//Fast IP check through proxy server testing.
 export async function checkIP(sessionId: string): Promise<{ ip: string; country: string; city: string }> {
   const sessionUsername = withSessionUsername(username || "", sessionId);
   const proxyUrl = `http://${sessionUsername}:${password}@${server}:${port}`;
@@ -99,11 +95,7 @@ export async function checkIP(sessionId: string): Promise<{ ip: string; country:
   });
 }
 
-/**
- * Create a Camoufox browser instance with anti-detection features
- * @param sessionId - Unique session ID for IP rotation
- * @returns Browser or BrowserContext instance
- */
+//Create a Camoufox browser instance
 export async function createBrowser(sessionId: string,): Promise<Browser | BrowserContext> {
   const PROXY_USERNAME = withSessionUsername(username || "", sessionId);
   const PROXY_PASSWORD = password || "";
@@ -117,7 +109,7 @@ export async function createBrowser(sessionId: string,): Promise<Browser | Brows
 
   try {
     browser = await Camoufox({
-      headless: HEADLESS,
+      headless: HEADLESS === "true",
       locale: "ko-KR",
       geoip: true,
       proxy: `http://${PROXY_USERNAME}:${PROXY_PASSWORD}@${server}:${port}`,

@@ -33,18 +33,17 @@ function startHealthCheckInterval() {
   healthCheckStarted = true;
   
   setInterval(async () => {
-    if (isWarmingUp || !isServerReady) return;
+    if (isWarmingUp || !isServerReady || isProcessingQueue) return;
     
     const session = getActiveSession();
     if (!session.browser || !session.sessionId) return;
     
     console.log(`[CHECK] Testing session health - Session: ${session.sessionId}`);
     
+    let healthCheckPage = null;
     try {
-      let page = session.page;
-      if (!page || page.isClosed()) {
-        page = await session.browser.newPage();
-      }
+      // Create a separate page for health check (don't interfere with scraper)
+      healthCheckPage = await session.browser.newPage();
       
       let productApiOk = false;
       let benefitApiOk = false;
@@ -61,21 +60,20 @@ function startHealthCheckInterval() {
         }
       };
       
-      page.on("response", responseHandler);
+      healthCheckPage.on("response", responseHandler);
       
-      await page.goto(TEST_PRODUCT_URL, {
+      await healthCheckPage.goto(TEST_PRODUCT_URL, {
         waitUntil: "domcontentloaded",
         timeout: 30000,
       });
       
-      // Wait up to 10 seconds for both APIs
       const maxWait = 10000;
       const start = Date.now();
       while ((!productApiOk || !benefitApiOk) && Date.now() - start < maxWait) {
         await delay(500);
       }
       
-      page.off("response", responseHandler);
+      healthCheckPage.off("response", responseHandler);
       
       if (productApiOk && benefitApiOk) {
         console.log(`[CHECK] Session healthy - Both APIs returned 200`);
@@ -104,6 +102,13 @@ function startHealthCheckInterval() {
       } finally {
         isWarmingUp = false;
       }
+    } finally {
+      if (healthCheckPage && !healthCheckPage.isClosed()) {
+        try {
+          await healthCheckPage.close();
+        } catch (e) {
+        }
+      }
     }
   }, HEALTH_CHECK_INTERVAL);
 }
@@ -128,16 +133,6 @@ app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
 
-//Health check
-app.get('/health', (req: Request, res: Response) => {
-  const session = getActiveSession();
-  res.json({
-    status: isServerReady ? 'ready' : (isWarmingUp ? 'warming_up' : 'not_ready'),
-    hasSession: !!session.browser,
-    sessionId: session.sessionId,
-  });
-});
-
 //the REAL queue logic
 async function processQueue() {
   if (isProcessingQueue || requestQueue.length === 0) return;
@@ -158,7 +153,6 @@ async function processQueue() {
       request.reject(error);
     }
     
-    //FIX: Added random delay between requests 
     if (requestQueue.length > 0) {
       const delayMs = 4000 + Math.random() * 6000;
       console.log(`[QUEUE] Waiting ${(delayMs / 1000).toFixed(1)}s before next request...`);
@@ -208,6 +202,20 @@ async function scrapeWithRetry(url: string): Promise<any> {
   throw new Error('Max retries reached');
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+//Health check
+app.get('/health', (req: Request, res: Response) => {
+  const session = getActiveSession();
+  res.json({
+    status: isServerReady ? 'ready' : (isWarmingUp ? 'warming_up' : 'not_ready'),
+    hasSession: !!session.browser,
+    sessionId: session.sessionId,
+  });
+});
+
 //Naver endpoint
 app.get('/naver', async (req: Request, res: Response) => {
   const url = req.query.productUrl as string;
@@ -256,8 +264,3 @@ app.get('/naver', async (req: Request, res: Response) => {
     }
   }
 });
-
-
-function delay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
