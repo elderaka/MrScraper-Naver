@@ -6,7 +6,7 @@ import { setActiveSession, closeActiveSession } from "./session.js";
 // ENV CONF
 const WARMUP_HOMEPAGE_URL =
   process.env.WARMUP_HOMEPAGE_URL ||
-  "https://shopping.naver.com/v1/products/15030128621?cp=1&frm=NVSHATC";
+  "https://shopping.naver.com/ns/home";
 const WARMUP_PRODUCT_URL =
   process.env.WARMUP_PRODUCT_URL ||
   "https://smartstore.naver.com/ccjoy/products/12438838476";
