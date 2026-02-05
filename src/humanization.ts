@@ -13,9 +13,10 @@ function randomDelay(min: number, max: number): Promise<void> {
 // Main logic
 export async function Humanize(
   browser: Browser | BrowserContext,
-  stopSignal: { stopped: boolean }
+  stopSignal: { stopped: boolean },
+  sessionId: string
 ): Promise<void> {
-  console.log('[Humanization] Started humanization');
+  console.log(`[Humanization] Started humanization for session ${sessionId}`);
   
   const getCurrentPage = (): Page | null => {
     try {
@@ -185,5 +186,5 @@ export async function Humanize(
     dragger()
   ]);
   
-  console.log('[Humanization] Stopped humanization');
+  console.log(`[Humanization] Stopped humanization for session ${sessionId}`);
 }

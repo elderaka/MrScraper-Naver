@@ -38,7 +38,19 @@ export async function warmupSession(): Promise<{
 
       // Start humanization
       const humanizeStopSignal = { stopped: false };
-      const humanizeTask = Humanize(browser, humanizeStopSignal);
+      let humanizeTask: Promise<void>;
+
+      const startHumanize = (): Promise<void> =>
+        Humanize(browser, humanizeStopSignal, sessionId).finally(() => {
+          if (!humanizeStopSignal.stopped) {
+            console.log(
+              `[Humanization] Restarting humanization for session ${sessionId}`,
+            );
+            humanizeTask = startHumanize();
+          }
+        });
+
+      humanizeTask = startHumanize();
       
       // Visit homepage first to prevents 429 and build trust on this session
       const page = await browser.newPage();
