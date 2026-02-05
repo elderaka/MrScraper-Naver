@@ -71,6 +71,13 @@ async function processQueue() {
     } catch (error) {
       request.reject(error);
     }
+    
+    //FIX: Added random delay between requests 
+    if (requestQueue.length > 0) {
+      const delayMs = 4000 + Math.random() * 6000;
+      console.log(`[QUEUE] Waiting ${(delayMs / 1000).toFixed(1)}s before next request...`);
+      await delay(delayMs);
+    }
   }
   
   isProcessingQueue = false;
@@ -163,3 +170,8 @@ app.get('/naver', async (req: Request, res: Response) => {
     }
   }
 });
+
+
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
