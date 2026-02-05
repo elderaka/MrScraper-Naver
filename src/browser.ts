@@ -9,16 +9,30 @@ config();
 const proxy =
   process.env.PROXY_URL ||
   process.env.PROXY ||
-  "proxy-server-address:port:username:password";
+  "http://proxy-server-address:port:username:password";
 const HEADLESS = process.env.HEADLESS !== "true";
 const IP_TEST_URL = process.env.IP_TEST_URL || "http://ipinfo.thordata.com";
 
-// Proxy configuration
-const proxyParts = proxy.split(":");
-const server = proxyParts[0];
-const port = proxyParts[1];
-const username = proxyParts[2];
-const password = proxyParts.slice(3).join(":");
+// Proxy configuration - parse URL format: http://username:password@server:port
+let server: string;
+let port: string;
+let username: string;
+let password: string;
+
+try {
+  const proxyUrl = new URL(proxy);
+  server = proxyUrl.hostname;
+  port = proxyUrl.port;
+  username = proxyUrl.username;
+  password = proxyUrl.password;
+} catch {
+  // Fallback to old colon-separated format: server:port:username:password
+  const proxyParts = proxy.split(":");
+  server = proxyParts[0];
+  port = proxyParts[1];
+  username = proxyParts[2];
+  password = proxyParts.slice(3).join(":");
+}
 
 export function generateSessionId(): string {
   const prefix = Math.random().toString(36).slice(2, 5);
