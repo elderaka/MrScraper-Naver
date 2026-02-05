@@ -3,11 +3,13 @@ FROM node:18-slim AS builder
 
 WORKDIR /app
 
-# Install dependencies needed for Camoufox
+# Install dependencies needed for Camoufox and build tools for native modules
 RUN apt-get update && apt-get install -y \
     wget \
     gnupg \
     ca-certificates \
+    build-essential \
+    python3 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json* ./
