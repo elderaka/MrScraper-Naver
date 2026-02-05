@@ -13,7 +13,7 @@ const proxy =
 const HEADLESS = process.env.HEADLESS !== "true";
 const IP_TEST_URL = process.env.IP_TEST_URL || "http://ipinfo.thordata.com";
 
-// Proxy configuration - parse URL format: http://username:password@server:port
+// Proxy configuration (parse URL format: http://username:password@server:port)
 let server: string;
 let port: string;
 let username: string;
@@ -28,9 +28,9 @@ try {
 } catch {
   // Fallback to old colon-separated format: server:port:username:password
   const proxyParts = proxy.split(":");
-  server = proxyParts[0];
-  port = proxyParts[1];
-  username = proxyParts[2];
+  server = proxyParts[0] || "";
+  port = proxyParts[1] || "";
+  username = proxyParts[2] || "";
   password = proxyParts.slice(3).join(":");
 }
 
