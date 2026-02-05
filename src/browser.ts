@@ -10,7 +10,7 @@ const proxy =
   process.env.PROXY_URL ||
   process.env.PROXY ||
   "proxy-server-address:port:username:password";
-const HEADLESS = process.env.HEADLESS !== "false";
+const HEADLESS = process.env.HEADLESS !== "true";
 const IP_TEST_URL = process.env.IP_TEST_URL || "http://ipinfo.thordata.com";
 
 // Proxy configuration

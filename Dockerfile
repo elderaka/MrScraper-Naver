@@ -44,6 +44,10 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY package.json ./
 
+RUN npx camoufox-js fetch
+
+RUN npx playwright install-deps firefox
+
 RUN mkdir -p /tmp && chmod 1777 /tmp
 
 ENV PORT=8080
