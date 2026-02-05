@@ -44,11 +44,12 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY package.json ./
 
-RUN useradd -m -u 2000 appuser && chown -R appuser:appuser /app
-USER appuser
+RUN mkdir -p /tmp && chmod 1777 /tmp
+
 ENV PORT=8080
-ENV HOME=/app
+ENV HOME=/root
 ENV NODE_ENV=production
+ENV TMPDIR=/tmp
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD node -e "require('http').get('http://localhost:8080/health', r => {if(r.statusCode !== 200) throw new Error(); process.exit(0)})"
