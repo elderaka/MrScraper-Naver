@@ -47,7 +47,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY package.json ./
-COPY camoufox_profile/ ./camoufox_profile/ 2>/dev/null || true/
+
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
 ENV PORT=8080
