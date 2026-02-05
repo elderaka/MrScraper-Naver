@@ -9,7 +9,7 @@ on:
 env:
   REGISTRY_NAME: mrscraper
   IMAGE_NAME: mr-scraper
-  WEBAPP_NAME: mrscraper
+  WEBAPP_NAME: mrscraper-docker
 
 jobs:
   build-and-deploy:
@@ -35,10 +35,8 @@ jobs:
           docker push ${{ env.REGISTRY_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
           docker push ${{ env.REGISTRY_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:latest
 
-      - name: Deploy to Web App
-        uses: azure/webapps-deploy@v2
-        with:
-          app-name: ${{ env.WEBAPP_NAME }}
-          images: ${{ env.REGISTRY_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:latest
-          publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
+      - name: Restart Web App
+        run: |
+          echo "Image pushed. Web App will auto-pull latest image."
+          echo "If auto-pull is not working, restart manually in Azure Portal."
           
