@@ -50,6 +50,9 @@ ENV PORT=8080
 ENV HOME=/root
 ENV NODE_ENV=production
 ENV TMPDIR=/tmp
+ENV XDG_DATA_HOME=/root/.local/share
+ENV XDG_CONFIG_HOME=/root/.config
+ENV XDG_CACHE_HOME=/root/.cache
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD node -e "require('http').get('http://localhost:8080/health', r => {if(r.statusCode !== 200) throw new Error(); process.exit(0)})"
