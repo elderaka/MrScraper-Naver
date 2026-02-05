@@ -80,7 +80,6 @@ export async function checkIP(sessionId: string): Promise<{ ip: string; country:
   const sessionUsername = withSessionUsername(username || "", sessionId);
   const proxyUrl = `http://${sessionUsername}:${password}@${server}:${port}`;
   
-  // Use HTTPS agent for HTTPS URLs or HTTP agent for HTTP URLs
   const agent = IP_TEST_URL.startsWith('https://') 
     ? new HttpsProxyAgent(proxyUrl, { rejectUnauthorized: false })
     : new HttpProxyAgent(proxyUrl);
@@ -89,10 +88,27 @@ export async function checkIP(sessionId: string): Promise<{ ip: string; country:
   const requestModule = IP_TEST_URL.startsWith('https://') ? https : http;
 
   return new Promise((resolve, reject) => {
-    const req = requestModule.get(checkUrl, { agent, timeout: 10000 }, (res) => {
+    const req = requestModule.get(
+      checkUrl,
+      {
+        agent,
+        timeout: 10000,
+        insecureHTTPParser: true,
+        headers: {
+          "User-Agent": "Mozilla/5.0",
+          Accept: "application/json",
+        },
+      },
+      (res) => {
       let data = "";
       res.on("data", (chunk) => (data += chunk));
       res.on("end", () => {
+        if (res.statusCode === 403 && data.includes("authentication failed")) {
+          console.error("\n[CRITICAL] Proxy authentication failed");
+          console.error(`Response: ${data}`);
+          console.error("\nPlease check your proxy credentials in the .env file.\n");
+          process.exit(1);
+        }
         try {
           const ipInfo = JSON.parse(data);
           resolve({
@@ -101,9 +117,10 @@ export async function checkIP(sessionId: string): Promise<{ ip: string; country:
             city: ipInfo.geo?.city || "unknown",
           });
         } catch (e) {
-          reject(new Error("Failed to parse IP info"));
+          reject(new Error(`Failed to parse IP info response: ${e}`));
         }
-      });
+      },
+    );
     });
 
     req.on("error", (err) => reject(err));
