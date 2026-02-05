@@ -14,8 +14,10 @@ RUN apt-get update && apt-get install -y \
 
 COPY package.json package-lock.json* ./
 RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
-RUN npx camoufox-js fetch
 
+ENV HOME=/root
+ENV XDG_CACHE_HOME=/root/.cache 
+RUN npx camoufox-js fetch
 RUN npx playwright install-deps firefox
 COPY tsconfig.json ./
 COPY src ./src
@@ -52,12 +54,11 @@ COPY package.json ./
 RUN mkdir -p /tmp && chmod 1777 /tmp
 
 ENV PORT=8080
-ENV HOME=/root
 ENV NODE_ENV=production
 ENV TMPDIR=/tmp
 ENV XDG_DATA_HOME=/root/.local/share
 ENV XDG_CONFIG_HOME=/root/.config
-ENV XDG_CACHE_HOME=/root/.cache
+
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD node -e "require('http').get('http://localhost:8080/health', r => {if(r.statusCode !== 200) throw new Error(); process.exit(0)})"
