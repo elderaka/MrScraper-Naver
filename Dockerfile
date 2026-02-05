@@ -1,5 +1,5 @@
 # Build stage
-FROM node:18-slim AS builder
+FROM node:20-slim AS builder
 
 WORKDIR /app
 
@@ -26,13 +26,13 @@ COPY package.json package-lock.json* ./
 RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
 # Install Playwright dependencies
-RUN npx playwright install-deps firefox
+RUN npx playwright install-deps firefox 
 
 COPY tsconfig.json ./
 COPY src ./src
 RUN npm run build
 # Runtime stage
-FROM node:18-slim
+FROM node:20-slim
 
 WORKDIR /app
 
