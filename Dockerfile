@@ -47,6 +47,8 @@ COPY package.json ./
 RUN useradd -m -u 2000 appuser && chown -R appuser:appuser /app
 USER appuser
 ENV PORT=8080
+ENV HOME=/app
+ENV NODE_ENV=production
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD node -e "require('http').get('http://localhost:8080/health', r => {if(r.statusCode !== 200) throw new Error(); process.exit(0)})"
