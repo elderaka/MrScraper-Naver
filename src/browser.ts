@@ -26,7 +26,7 @@ try {
   username = proxyUrl.username;
   password = proxyUrl.password;
 } catch {
-  // Fallback to old colon-separated format: server:port:username:password
+  // Fallback to old colon-separated format (server:port:username:password)
   const proxyParts = proxy.split(":");
   server = proxyParts[0] || "";
   port = proxyParts[1] || "";
