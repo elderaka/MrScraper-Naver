@@ -31,14 +31,8 @@ RUN apt-get update && apt-get install -y \
     libxext6 \
     libxrender1 \
     libnss3 \
-    libgconf-2-4 \
-    libappindicator1 \
-    libindicator7 \
     xdg-utils \
     fonts-liberation \
-    xfonts-encodings \
-    xfonts-utils \
-    libpci3 \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
