@@ -14,6 +14,9 @@ RUN apt-get update && apt-get install -y \
 
 COPY package.json package-lock.json* ./
 RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+RUN npx camoufox-js fetch
+
+RUN npx playwright install-deps firefox
 COPY tsconfig.json ./
 COPY src ./src
 RUN npm run build
@@ -44,9 +47,7 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY package.json ./
 
-RUN npx camoufox-js fetch
 
-RUN npx playwright install-deps firefox
 
 RUN mkdir -p /tmp && chmod 1777 /tmp
 
