@@ -44,7 +44,7 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY package.json ./
 
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+RUN useradd -m -u 2000 appuser && chown -R appuser:appuser /app
 USER appuser
 ENV PORT=8080
 EXPOSE 8080
