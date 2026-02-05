@@ -23,6 +23,91 @@ const requestQueue: QueuedRequest[] = [];
 let isProcessingQueue = false;
 let requestCounter = 0;
 
+// Session health check every 5 minute
+const HEALTH_CHECK_INTERVAL = 5 * 60 * 1000;
+const TEST_PRODUCT_URL = process.env.WARMUP_PRODUCT_URL || "https://smartstore.naver.com/ccjoy/products/12438838476";
+let healthCheckStarted = false;
+
+function startHealthCheckInterval() {
+  if (healthCheckStarted) return;
+  healthCheckStarted = true;
+  
+  setInterval(async () => {
+    if (isWarmingUp || !isServerReady) return;
+    
+    const session = getActiveSession();
+    if (!session.browser || !session.sessionId) return;
+    
+    console.log(`[CHECK] Testing session health - Session: ${session.sessionId}`);
+    
+    try {
+      let page = session.page;
+      if (!page || page.isClosed()) {
+        page = await session.browser.newPage();
+      }
+      
+      let productApiOk = false;
+      let benefitApiOk = false;
+      
+      const responseHandler = (response: any) => {
+        const url = response.url();
+        const status = response.status();
+        
+        if (url.includes("/benefits/by-products/")) {
+          if (status === 200) benefitApiOk = true;
+        }
+        if (url.includes("/products/") && url.includes("withWindow=false")) {
+          if (status === 200) productApiOk = true;
+        }
+      };
+      
+      page.on("response", responseHandler);
+      
+      await page.goto(TEST_PRODUCT_URL, {
+        waitUntil: "domcontentloaded",
+        timeout: 30000,
+      });
+      
+      // Wait up to 10 seconds for both APIs
+      const maxWait = 10000;
+      const start = Date.now();
+      while ((!productApiOk || !benefitApiOk) && Date.now() - start < maxWait) {
+        await delay(500);
+      }
+      
+      page.off("response", responseHandler);
+      
+      if (productApiOk && benefitApiOk) {
+        console.log(`[CHECK] Session healthy - Both APIs returned 200`);
+      } else {
+        console.log(`[CHECK] Session unhealthy - Product: ${productApiOk ? '200' : 'failed'}, Benefit: ${benefitApiOk ? '200' : 'failed'}`);
+        console.log('[CHECK] Rotating session...');
+        isWarmingUp = true;
+        try {
+          await rotateSession();
+          console.log('[CHECK] Session rotated successfully');
+        } catch (error) {
+          console.error('[CHECK] Rotation failed:', error);
+        } finally {
+          isWarmingUp = false;
+        }
+      }
+    } catch (error) {
+      console.error(`[CHECK] Test failed:`, error);
+      console.log('[CHECK] Rotating session due to health check failure...');
+      isWarmingUp = true;
+      try {
+        await rotateSession();
+        console.log('[CHECK] Session rotated successfully');
+      } catch (rotateError) {
+        console.error('[CHECK] Rotation failed:', rotateError);
+      } finally {
+        isWarmingUp = false;
+      }
+    }
+  }, HEALTH_CHECK_INTERVAL);
+}
+
 //When starting the server, warm it up first
 (async () => {
   console.log('[SERVER] Starting warmup...');
@@ -31,6 +116,7 @@ let requestCounter = 0;
     await warmupSession();
     isServerReady = true;
     console.log('[SERVER] Ready to handle requests');
+    startHealthCheckInterval();
   } catch (error) {
     console.error('[SERVER] Warmup failed:', error);
   } finally {
