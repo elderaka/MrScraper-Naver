@@ -1,6 +1,6 @@
 # Naver SmartStore Scraper
 
-A web scraper for Naver SmartStore (Korean e-commerce website) that can bypass bot detection using Camoufox and Playwright
+A web scraper for Naver SmartStore (Korean e-commerce website) that can bypass bot detection using Camoufox and Playwright, created by Lauda Dhia Raka for Mr.Scraper's coding challenge
 
 ---
 
