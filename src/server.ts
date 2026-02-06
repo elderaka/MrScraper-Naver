@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import { scrapePage, BlockedError } from './scraper.js';
 import { warmupSession, rotateSession } from './warmup.js';
 import { getActiveSession } from './session.js';
+import { ProxyAuthError } from './browser.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -92,13 +93,21 @@ function startHealthCheckInterval() {
       }
     } catch (error) {
       console.error(`[CHECK] Test failed:`, error);
+      if (error instanceof ProxyAuthError) {
+        console.error('[CHECK] Cannot rotate session with invalid credentials');
+        return;
+      }
       console.log('[CHECK] Rotating session due to health check failure...');
       isWarmingUp = true;
       try {
         await rotateSession();
         console.log('[CHECK] Session rotated successfully');
       } catch (rotateError) {
-        console.error('[CHECK] Rotation failed:', rotateError);
+        if (rotateError instanceof ProxyAuthError) {
+          console.error('[CHECK] Proxy auth failed during rotation');
+        } else {
+          console.error('[CHECK] Rotation failed:', rotateError);
+        }
       } finally {
         isWarmingUp = false;
       }
@@ -123,7 +132,13 @@ function startHealthCheckInterval() {
     console.log('[SERVER] Ready to handle requests');
     startHealthCheckInterval();
   } catch (error) {
-    console.error('[SERVER] Warmup failed:', error);
+    if (error instanceof ProxyAuthError) {
+      console.error('[SERVER] Proxy authentication failed during warmup.');
+      console.error('[SERVER] The proxy credentials are invalid or expired.');
+      console.error('[SERVER] Server will remain in not_ready state.');
+    } else {
+      console.error('[SERVER] Warmup failed:', error);
+    }
   } finally {
     isWarmingUp = false;
   }
@@ -184,6 +199,10 @@ async function scrapeWithRetry(url: string): Promise<any> {
             await rotateSession();
             console.log('[SERVER] New session ready');
           } catch (rotateError) {
+            if (rotateError instanceof ProxyAuthError) {
+              console.error('[SERVER] Proxy auth failed rotate session');
+              throw rotateError;
+            }
             console.error('[SERVER] Rotation failed:', rotateError);
           } finally {
             isWarmingUp = false;
@@ -213,6 +232,7 @@ app.get('/health', (req: Request, res: Response) => {
     status: isServerReady ? 'ready' : (isWarmingUp ? 'warming_up' : 'not_ready'),
     hasSession: !!session.browser,
     sessionId: session.sessionId,
+    note: !isServerReady && !isWarmingUp ? 'Server failed to start. Check logs for issues.' : undefined
   });
 });
 
@@ -256,7 +276,13 @@ app.get('/naver', async (req: Request, res: Response) => {
     const result = await queuePromise;
     res.json(result);
   } catch (error) {
-    if (error instanceof BlockedError) {
+    if (error instanceof ProxyAuthError) {
+      res.status(502).json({ 
+        error: 'Proxy authentication failed', 
+        message: 'Proxy credentials are invalid or expired.',
+        requiresAction: 'proxy_reconfiguration'
+      });
+    } else if (error instanceof BlockedError) {
       res.status(429).json({ error: 'Max retries reached, all sessions blocked', blockType: error.blockType });
     } else {
       console.error('[SERVER] Error:', error);

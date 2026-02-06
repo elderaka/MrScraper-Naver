@@ -6,6 +6,14 @@ import { config } from "dotenv";
 import { HttpProxyAgent } from "http-proxy-agent";
 import { HttpsProxyAgent } from "https-proxy-agent";
 
+//Error for proxy authentication failures
+export class ProxyAuthError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ProxyAuthError';
+  }
+}
+
 // ENV Config
 config();
 const proxy =
@@ -106,8 +114,8 @@ export async function checkIP(sessionId: string): Promise<{ ip: string; country:
         if (res.statusCode === 403 && data.includes("authentication failed")) {
           console.error("\n[CRITICAL] Proxy authentication failed");
           console.error(`Response: ${data}`);
-          console.error("\nPlease check your proxy credentials in the .env file.\n");
-          process.exit(1);
+          reject(new ProxyAuthError("Proxy credentials are invalid or expired. Please update .env file with new proxy credentials."));
+          return;
         }
         try {
           const ipInfo = JSON.parse(data);
@@ -163,6 +171,11 @@ export async function createBrowser(sessionId: string,): Promise<Browser | Brows
   } catch (err: any) {
     const msg = String(err?.message || err);
     console.error(`[CAMOUFOX] ERROR creating browser: ${msg}`);
+    
+    if (msg.toLowerCase().includes("authentication") || msg.toLowerCase().includes("proxy")) {
+      throw new ProxyAuthError(`Browser creation failed due to proxy issue: ${msg}`);
+    }
+    
     throw err;
   }
 
