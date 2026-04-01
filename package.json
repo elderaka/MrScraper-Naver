@@ -1,5 +1,5 @@
 {
-  "name": "mrscraper",
+  "name": "shopee-scraper",
   "version": "1.0.0",
   "type": "module",
   "main": "index.js",
@@ -8,6 +8,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "dev": "node --no-warnings --loader ts-node/esm src/server.ts",
+    "browser-server": "node --no-warnings --loader ts-node/esm src/browser-server.ts",
     "test:load": "npm run build && node dist/load-test.js",
     "test:quick": "npm run build && node dist/load-test.js --duration=5 --concurrency=10"
   },

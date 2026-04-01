@@ -1,16 +1,12 @@
 import type { Page } from 'playwright-core';
 import { getActiveSession, setActiveSession } from './session.js';
 
-//custom error for blocked requests
+// Custom error for blocked requests
 export class BlockedError extends Error {
   status: number;
-  blockType: 'api_429' | 'web_429' | 'captcha' | 'connection';
-  // api_429 often occures because NAVER detected suspicious activity from the IP
-  // web_429 often occures due to untrusted IP
-  // captcha occures if IP or region is not from Korea. error code is 490
-  // connection for other network issues
-  
-  constructor(message: string, status: number, blockType: 'api_429' | 'web_429' | 'captcha' | 'connection') {
+  blockType: 'rate_limit' | 'captcha' | 'connection';
+
+  constructor(message: string, status: number, blockType: 'rate_limit' | 'captcha' | 'connection') {
     super(message);
     this.name = 'BlockedError';
     this.status = status;
@@ -18,16 +14,23 @@ export class BlockedError extends Error {
   }
 }
 
-//main logic
-export async function scrapePage(url: string): Promise<any> {
+export interface ShopeeProduct {
+  name: string;
+  price: number;
+  priceFormatted: string;
+  link: string;
+}
+
+// Main scraping logic — search Shopee by keyword, return 3 cheapest products
+export async function searchShopee(keyword: string): Promise<ShopeeProduct[]> {
   const startTime = Date.now();
   const session = getActiveSession();
-  
+
   if (!session.browser) {
     throw new Error('No active browser session');
   }
-  
-  //Setting up page
+
+  // Get or create page
   let page = session.page;
   if (!page || page.isClosed()) {
     console.log("[SCRAPER] Creating new page");
@@ -36,110 +39,117 @@ export async function scrapePage(url: string): Promise<any> {
   } else {
     console.log("[SCRAPER] Reusing existing page");
   }
-  
-  //Set up API interception
-  let productDetail: any = null;
-  let benefits: any = null;
-  let apiBlocked = false;
-  let blockedApiName = '';
-  let blockedApiStatus = 0;
-  
-  const responseHandler = async (response: any) => {
-    const responseUrl = response.url();
-    const status = response.status();
-    
-    // Benefits API
-    if (responseUrl.includes('/i/v2/channels/') && responseUrl.includes('/benefits/by-products/')) {
-      console.log(`[SCRAPER] Benefits API: ${status}`);
-      if (status === 429 || status === 490) {
-        apiBlocked = true;
-        blockedApiName = 'Benefits';
-        blockedApiStatus = status;
-        return;
-      }
-      if (status >= 200 && status < 300) {
-        try { benefits = await response.json(); } catch {}
-      }
-    }
-    
-    // Product API
-    if (responseUrl.includes('/i/v2/channels/') && responseUrl.includes('/products/') && responseUrl.includes('withWindow=false')) {
-      console.log(`[SCRAPER] Product API: ${status}`);
-      if (status === 429 || status === 490) {
-        apiBlocked = true;
-        blockedApiName = 'Product';
-        blockedApiStatus = status;
-        return;
-      }
-      if (status >= 200 && status < 300) {
-        try { productDetail = await response.json(); } catch {}
-      }
-    }
-  };
-  
-  page.on('response', responseHandler);
-  
-  //Navigate to the requested url
+
+  const searchUrl = `https://shopee.co.id/search?keyword=${encodeURIComponent(keyword)}&page=0&sortBy=price&order=asc`;
+
   try {
-    console.log(`[SCRAPER] Navigating to: ${url}`);
-    const response = await page.goto(url, {
-      waitUntil: 'domcontentloaded',
-      timeout: 30000,
+    console.log(`[SCRAPER] Searching Shopee for: "${keyword}"`);
+    console.log(`[SCRAPER] URL: ${searchUrl}`);
+
+    let response: any = null;
+    let status = 0;
+    
+    // Set up API interception BEFORE navigation
+    const responsePromise = page.waitForResponse(
+      (res) => res.url().includes('api/v4/search/search_items') && res.request().method() === 'GET',
+      { timeout: 30000 }
+    ).catch(e => {
+      console.log(`[SCRAPER] API Interception failed: ${e.message}`);
+      return null;
     });
     
-    const status = response?.status();
+    // Retry navigation up to 3 times for transient protocol errors
+    for (let navAttempt = 1; navAttempt <= 3; navAttempt++) {
+      try {
+        response = await page.goto(searchUrl, {
+          waitUntil: 'domcontentloaded',
+          timeout: 45000,
+        });
+        status = response?.status() || 0;
+        break; // Sucesss, exit retry loop
+      } catch (navErr: any) {
+        console.log(`[SCRAPER] Navigation attempt ${navAttempt} failed: ${navErr.message}`);
+        if (navAttempt === 3) {
+          throw navErr; // Give up on 3rd fail
+        }
+        await new Promise(r => setTimeout(r, 2000));
+      }
+    }
+
     console.log(`[SCRAPER] Page status: ${status}`);
-    
-    //Wait for APIs (max 12 seconds)
-    const maxWait = 12000;
-    const start = Date.now();
-    while ((!productDetail || !benefits) && !apiBlocked && (Date.now() - start) < maxWait) {
-      await new Promise(r => setTimeout(r, 200));
-    }
-    
-    //Check for blocks. If there are any, throw to trigger server warmup
-    if (apiBlocked) {
-      const errorMsg = `${blockedApiName} API blocked with status ${blockedApiStatus}`;
-      console.log(`[SCRAPER] ${errorMsg}`);
-      throw new BlockedError(errorMsg, blockedApiStatus, 'api_429');
-    }
-    
-    if (status === 490) {
-      throw new BlockedError('CAPTCHA detected', 490, 'captcha');
-    }
-    
+
     if (status === 429) {
-      throw new BlockedError('Rate limited', 429, 'web_429');
+      throw new BlockedError('Rate limited by Shopee', 429, 'rate_limit');
     }
-    
-    if (status === 404) {
-      return { success: false, status: 404, error: 'Product not found' };
-    }
-    
+
     if (!status || status >= 400) {
       throw new BlockedError(`HTTP ${status}`, status || 0, 'connection');
     }
-    
-    //Check page content
-    const content = await page.content();
-    const title = await page.title();
-    
-    //Occasinally, Naver fails. These are words on the page if that happens
-    if (content.includes('[에러페이지]') || content.includes('시스템오류')) {
-      return { success: false, error: 'Naver error page' };
+
+    // Check if we received the API response
+    const apiRes = await responsePromise;
+    if (!apiRes) {
+      // API request not fired, check for CAPTCHA or block page
+      const pageContent = await page.content();
+      if (pageContent.includes('captcha') || pageContent.includes('verify')) {
+        const title = await page.title();
+        if (title.toLowerCase().includes('verify') || title.toLowerCase().includes('captcha')) {
+          throw new BlockedError('CAPTCHA detected on Shopee', 403, 'captcha');
+        }
+      }
+      throw new BlockedError('Search API response not found within timeout', 0, 'connection');
     }
+
+    console.log(`[SCRAPER] Intercepted Shopee API response!`);
+    const jsonData = await apiRes.json();
+    const items = jsonData.items || [];
+    console.log(`[SCRAPER] API returned ${items.length} items`);
+
+    if (items.length === 0) {
+      throw new BlockedError('No products found — API returned 0 items', 0, 'connection');
+    }
+
+    console.log("[SCRAPER] Parsing product data from JSON...");
+    const products: ShopeeProduct[] = [];
     
+    for (const item of items) {
+      if (!item.item_basic) continue;
+      
+      const { name, price: rawPrice, shopid, itemid } = item.item_basic;
+      
+      // Shopee raw price contains 5 trailing zeros
+      const price = rawPrice / 100000;
+      const priceFormatted = `Rp${price.toLocaleString('id-ID')}`;
+      
+      // Construct the shopee product link
+      const link = `https://shopee.co.id/product/${shopid}/${itemid}`;
+      
+      if (name && price > 0) {
+        products.push({ name, price, priceFormatted, link });
+      }
+    }
+
+    console.log(`[SCRAPER] Successfully parsed ${products.length} products`);
+
+    // Sort by price ascending and take the 3 cheapest
+    products.sort((a, b) => a.price - b.price);
+    const cheapest3 = products.slice(0, 3);
+
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
-    console.log(`[SCRAPER] Success! (${elapsed}s)`);
-    return {
-      success: true,
-      status: 200,
-      title,
-      productDetail: productDetail || null,
-      benefits: benefits || null,
-    };
-    
-  } finally {
-    page.off('response', responseHandler);
+    console.log(`[SCRAPER] Success! Found ${products.length} products, returning top 3 cheapest (${elapsed}s)`);
+
+    return cheapest3;
+
+  } catch (error) {
+    if (error instanceof BlockedError) throw error;
+
+    const msg = String((error as any)?.message || error);
+    console.error(`[SCRAPER] Error: ${msg}`);
+
+    if (msg.includes('timeout') || msg.includes('Timeout')) {
+      throw new BlockedError(`Navigation timeout: ${msg}`, 0, 'connection');
+    }
+
+    throw error;
   }
 }
